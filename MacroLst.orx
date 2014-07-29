@@ -1,0 +1,138 @@
+/* 
+	OREXX for 123G internal macro: puts the list of all
+	registered macros into the given range
+	
+*/
+
+call 'dlfclass.cmd'
+call 'lepconst.cmd'
+
+parse arg args
+
+argc=words(args)
+if argc<1 then do
+  say 'Usage: *.cmd <LEPArgsArray instance address>'
+  return
+end
+
+do i=1 to argc
+      argv.i=word(args,i)~strip('B')
+end
+
+outlog=.stream~new('stdout.log')~~command('open write')
+errlog=.stream~new('stderr.log')~~command('open write')
+
+call RedirectStdOutput
+
+signal on syntax name ErrExit
+
+say 'Argument[1] = "'||argv.1||'" ('||c2x(argv.1)||')'
+
+somArgsArray=.LEPArgsArray~LEPArgumentsArrayFromLong(argv.1)
+
+if somArgsArray=.nil then do
+   say 'Illegal 1st argument received, '
+   say 'it must be a valid LEPArgumentsArray instance pointer'
+   .Range~ClsDisplayError("Illegal LEPArgumentsArray object address");
+   return 1
+end
+
+sz=somArgsArray~Size()
+rng=somArgsArray~GetByNo(0)
+
+if rng~somGetClassName\="LEPRange" then do
+	say rng
+	.Range~ClsDisplayError("First argument should be range, not "||rng)
+	return 1
+end
+
+
+/*********************************************************************** 
+ *           Insert your code here                                     *
+ *                                                                     *
+ ***********************************************************************/
+
+dim=rng~_get_dimension()
+rxMacroMgr=.LEPRexxMacroManager~somNew
+if rxMacroMgr=.nil then do
+	msg='Could not locate LEPRexxMacroManager'
+	say msg
+	.Range~ClsDisplayError(msg)
+	return 1
+end
+regMacroNum=rxMacroMgr~_get_size()-1
+xyz=.Coord~somNew
+
+xyz~InitCoords(1,1,1)
+rng~SetCellValue(xyz, "Name")
+
+xyz~InitCoords(1,2,1)
+rng~SetCellValue(xyz, "File")
+
+do i=0 to regMacroNum
+	xyz~InitCoords(1,1,i+2)
+	nm=rxMacroMgr~GetName(i)
+	rng~SetCellValue(xyz,'{'||nm||'}')
+	if nm\=.nil then do 
+		xyz~InitCoords(1,2,i+2)
+		rng~SetCellValue(xyz,rxMacroMgr~GetFilename(i))
+	end
+end
+ xyz~somFree
+ rc=outlog~close
+ rc=errlog~close
+return
+
+ErrExit:
+retcode=RC
+
+ cnd=CONDITION('O')
+ say cnd
+ prg=cnd~entry('PROGRAM')
+ lNo=cnd~entry('POSITION')
+ errtxt=cnd~entry('ERRORTEXT')
+ errmsg=cnd~entry('MESSAGE')
+/*
+ errlog~lineout('Error '||RC||'occured in '||prg||'(line #'||lNo ||'): '||errtxt)
+ errlog~lineout(errmsg)
+*/
+
+ msg='Error '||rc||' occured at line '||sigl||' : '||Errortext(rc)
+ msg=msg||x2c('0D0A')||'** 'sigl'**: 'sourceline(sigl)
+ msg=msg||x2c('0D0A')||errmsg
+ say msg
+ .Range~ClsDisplayError(msg)
+ rc=outlog~close
+ rc=errlog~close
+ 
+return retcode
+
+RedirectStdOutput: procedure expose outlog errlog
+/****************************************************************
+   This function redirects standard output and error streams
+   to the files
+*****************************************************************/
+
+ .local~setentry('output',.monitor~new(.stream~new(stdout)~~command(open nobuffer)))
+
+ /* The following sets the destination. */
+ prev_stout=.output~destination(outlog)
+
+ .local~setentry('error',.monitor~new(.stream~new(stderr)~~command(open nobuffer)))
+
+ /* The following sets the destination. */
+ prev_stderr=.error~destination(errlog)
+
+return
+
+::Class Coord    Public EXTERNAL 'SOM LEPCoord'
+::Class M_Range  Public EXTERNAL 'SOM M_LEPRange'
+::Class Range    Public EXTERNAL 'SOM LEPRange'
+::Class LEPValue Public EXTERNAL 'SOM LEPValue'
+::Class LEPInteger Public EXTERNAL 'SOM LEPInteger'
+::Class LEPString Public EXTERNAL 'SOM LEPString'
+::Class LEPReal Public EXTERNAL 'SOM LEPReal'
+::Class LEPArgsArray  Public EXTERNAL 'SOM LEPArgumentsArray'
+::Class LEPRexxMacroManager Public EXTERNAL 'SOM LEPRexxMacroManager'
+
+
